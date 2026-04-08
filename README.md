@@ -17,23 +17,19 @@ Comme illustré ci-dessous, chaque pipeline prend en entrée une extraction de d
 
 ### Devise
 Normalise le champ `Devise` vers le code **ISO 4217 alpha-3** (ex : `USD`, `EUR`, `MRU`).
-Phases actives : **1 → 2** (mapping direct + alias + codes numériques).
 Présent dans : **E07_FS**, **E08_OCD**, **E09_PE**, **E10_FE**, **E11_RDCC**.
 
 ### Pays
 Normalise le champ `Pays` vers le code **ISO 3166-1 alpha-2** (ex : `FR`, `MA`, `MR`).
-Phases actives : **1 → 2 → 3 → 4** (fuzzy matching, extraction d'adresse, LLM Qwen).
 Présent dans : **E07_FS**, **E08_OCD**, **E10_FE**.
 
 ### TypeSwift
 Normalise le champ `TypeSwfit` vers les codes **SWIFT MT** et **ISO 20022** (ex : `MT 103`, `pacs.008`).
 Les codes valides sont séparés par flux (FS / FE) — validés avec l'équipe BCM le 30/03/2026.
-Phases actives : **1 → 2**.
 Présent dans : **E07_FS** (flux sortants), **E10_FE** (flux entrants).
 
 ### ModeReglement
 Normalise le champ `ModeReglement` vers les codes internes BCM (ex : `CD`, `RD`, `TL`).
-Phases actives : **1 → 2**.
 Présent dans : **E07_FS**.
 
 ---
