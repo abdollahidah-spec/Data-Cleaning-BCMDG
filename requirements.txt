@@ -1,0 +1,14 @@
+# Commun
+pandas
+xlsxwriter
+pyyaml
+python-dotenv
+sqlalchemy
+pyodbc
+
+# Pays uniquement
+pycountry
+babel
+geonamescache
+rapidfuzz
+ollama

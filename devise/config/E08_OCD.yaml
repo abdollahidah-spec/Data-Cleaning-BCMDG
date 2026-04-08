@@ -1,0 +1,20 @@
+# devise/config/E08_OCD.yaml
+# Surcharge config_base.yaml — seules les clés spécifiques à cette API sont définies
+
+api_id:     "E08_OCD"
+
+input:
+  type:       "sqlserver"
+  table_name: "E8EtatBcmOuvertureCreditDocumentaires"
+
+columns:
+  field:           "Devise"
+  field_out:       "Devise_iso"
+  ref_transaction: "NumCredoc"
+  ref_banque:      "RefBanque"
+
+outlier_tag:      "OUTLIER"
+referentiel_path: "devise/referentiel/devise_referentiel.json"
+
+output:
+  dir: "devise/outputs/E08_OCD/"

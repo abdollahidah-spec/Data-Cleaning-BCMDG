@@ -1,0 +1,19 @@
+# pays/config/E08_OCD.yaml
+api_id:  "E08_OCD"
+ 
+input:
+  type:       "sqlserver"
+  table_name: "E8EtatBcmOuvertureCreditDocumentaires"
+ 
+columns:
+  field:           "Pays"
+  field_out:       "Pays_iso2"
+  ref_transaction: "NumCredoc"
+  ref_banque:      "RefBanque"
+ 
+outlier_tag: "OUTLIER"
+use_llm:     true
+ 
+output:
+  dir: "pays/outputs/E08_OCD/"
+

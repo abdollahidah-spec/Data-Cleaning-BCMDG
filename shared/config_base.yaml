@@ -1,0 +1,20 @@
+# shared/config_base.yaml
+# Config commune — chaque pipeline YAML surcharge uniquement ce qui change
+
+pipeline_version: "1.0.0"
+
+input:
+  type:     "sqlserver"
+  sep:      ";"
+  encoding: "utf-8-sig"
+  sheet:    0
+
+output:
+  format: "csv"
+
+llm:
+  model:       "qwen2.5:14b"
+  batch_size:  25
+  num_ctx:     3500
+  max_retry:   3
+  retry_wait:  2

@@ -1,0 +1,24 @@
+{
+  "_comment": "Referentiel ModeReglement — codes valides et aliases.",
+  "version": "1.0.0",
+  "valid_modes": [
+    "CD",
+    "RD",
+    "TL"
+  ],
+  "aliases": {
+    "TR": "TL"
+  },
+  "known_noise": [
+    "NULL",
+    "NONE",
+    "NA",
+    "NAN",
+    "N/A",
+    "STRING",
+    "0",
+    "NA",
+    "BRUIT",
+    "CHECK", "ModeReglement", "CHBANK", "FACTURE", "0", "SWIFT"
+  ]
+}

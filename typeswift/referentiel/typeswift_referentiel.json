@@ -1,0 +1,45 @@
+{
+  "_comment": "Referentiel TypeSwift — codes validés avec Hassen et Najia le 30/03/2026.",
+  "version": "1.0.0",
+  "_note_format": "Codes stockés avec espaces (forme canonique). La résolution strip les espaces pour comparer.",
+  "valid_fs": [
+    "MT 103",
+    "MT 103 +",
+    "MT 103 REMIT",
+    "MT 104",
+    "MT 107",
+    "MT 202",
+    "MT 202 COV",
+    "MT 203",
+    "MT 204",
+    "pacs.003",
+    "pacs.008",
+    "pacs.009",
+    "pacs.010"
+  ],
+  "valid_fe": [
+    "MT 103",
+    "MT 103 +",
+    "MT 103 REMIT",
+    "MT 104",
+    "MT 107",
+    "MT 202",
+    "MT 202 COV",
+    "MT 203",
+    "pacs.008",
+    "pacs.009",
+    "pacs.004"
+  ],
+  "known_noise": [
+    "NULL",
+    "NONE",
+    "NA",
+    "NAN",
+    "N/A",
+    "STRING",
+    "0",
+    "1",
+    "BRUIT",
+    "CHECK"
+  ]
+}

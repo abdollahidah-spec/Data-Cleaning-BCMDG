@@ -1,0 +1,20 @@
+# devise/config/E11_RDCC.yaml
+# Surcharge config_base.yaml — seules les clés spécifiques à cette API sont définies
+
+api_id:     "E11_RDCC"
+
+input:
+  type:       "sqlserver"
+  table_name: "E11EtatBcmReleveDesComptesCorrespondants"
+
+columns:
+  field:           "Devise"
+  field_out:       "Devise_iso"
+  ref_transaction: "NomCorrespondant"
+  ref_banque:      "RefBanque"
+
+outlier_tag:      "OUTLIER"
+referentiel_path: "devise/referentiel/devise_referentiel.json"
+
+output:
+  dir: "devise/outputs/E11_RDCC/"

@@ -1,0 +1,76 @@
+{
+  "_comment": "Référentiel ISO 4217 — devise_pipeline v1.0.0. Modifier ce fichier pour ajouter/retirer des codes sans toucher au code Python.",
+  "version": "1.0.0",
+
+  "valid_iso4217": [
+    "USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "NZD",
+    "HKD", "SGD", "CNY", "INR", "KRW", "TWD", "THB", "MYR",
+    "IDR", "PHP", "VND", "BDT", "PKR", "LKR",
+    "SAR", "AED", "QAR", "KWD", "BHD", "OMR", "JOD", "IQD",
+    "LBP", "ILS", "IRR", "YER",
+    "MAD", "DZD", "TND", "LYD", "EGP",
+    "MRU", "XOF", "XAF", "NGN", "ZAR", "GHS", "KES", "ETB",
+    "TZS", "UGX", "RWF", "MGA", "MUR", "SCR", "CVE", "GMD",
+    "SLL", "GNF", "MWK", "ZMW", "ZWL", "BWP", "SZL", "NAD",
+    "AOA", "MZN", "SDG", "SSP", "DJF", "KMF", "STN", "SOS",
+    "ERN", "CDF", "LSL",
+    "NOK", "SEK", "DKK", "ISK", "PLN", "CZK", "HUF", "RON",
+    "BGN", "HRK", "RSD", "BAM", "MKD", "ALL", "MDL", "UAH",
+    "BYN", "GEL", "AMD", "AZN",
+    "BRL", "MXN", "ARS", "CLP", "COP", "PEN", "UYU", "PYG",
+    "BOB", "GTQ", "HNL", "NIO", "CRC", "PAB", "DOP", "JMD",
+    "TTD", "BSD", "HTG", "CUP", "BZD", "GYD", "SRD",
+    "RUB", "KZT", "UZS", "TJS", "TMT", "KGS",
+    "MMK", "KHR", "LAK", "BND", "PGK", "FJD", "SBD", "VUV",
+    "WST", "TOP",
+    "XPF", "XCD", "AFN", "NPR", "MOP", "BTN", "MNT", "KPW",
+    "SYP", "ANG", "AWG", "BBD", "BMD", "KYD", "SHP", "SVC",
+    "XDR", "XAU", "XAG"
+  ],
+
+  "num_to_iso": {
+    "840": "USD", "978": "EUR", "826": "GBP", "756": "CHF",
+    "392": "JPY", "124": "CAD", "036": "AUD", "554": "NZD",
+    "344": "HKD", "702": "SGD", "156": "CNY", "356": "INR",
+    "410": "KRW", "764": "THB", "360": "IDR", "458": "MYR",
+    "682": "SAR", "784": "AED", "634": "QAR", "414": "KWD",
+    "048": "BHD", "512": "OMR", "400": "JOD",
+    "504": "MAD", "012": "DZD", "788": "TND", "434": "LYD",
+    "818": "EGP", "929": "MRU", "952": "XOF", "950": "XAF",
+    "566": "NGN", "710": "ZAR", "936": "GHS", "404": "KES",
+    "578": "NOK", "752": "SEK", "208": "DKK", "985": "PLN",
+    "203": "CZK", "348": "HUF", "946": "RON", "975": "BGN",
+    "032": "ARS", "986": "BRL", "484": "MXN", "152": "CLP",
+    "170": "COP", "604": "PEN", "858": "UYU",
+    "643": "RUB", "398": "KZT"
+  },
+
+  "aliases": {
+    "DOLLAR":   "USD",
+    "DOLLARS":  "USD",
+    "EURO":     "EUR",
+    "EUROS":    "EUR",
+    "POUND":    "GBP",
+    "POUNDS":   "GBP",
+    "LIVRE":    "GBP",
+    "YEN":      "JPY",
+    "FRANC":    "CHF",
+    "FRANCS":   "CHF",
+    "DIRHAM":   "AED",
+    "DIRHAMS":  "AED",
+    "RIYAL":    "SAR",
+    "RIYALS":   "SAR",
+    "OUGUIYA":  "MRU",
+    "CFA":      "XOF",
+    "FCFA":     "XAF",
+    "USDFF":    "USD",
+    "USDFR":    "USD",
+    "USDF":     "USD",
+    "EURF":     "EUR",
+    "EURR":     "EUR"
+  },
+
+  "known_noise": [
+    "STRING", "DEVISE", "CHBANK", "XXX", "0", "NULL", "NONE", "NAN", "N/A", "NA"
+  ]
+}

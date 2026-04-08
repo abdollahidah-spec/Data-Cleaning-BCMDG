@@ -1,0 +1,20 @@
+# devise/config/E07_FS.yaml
+# Surcharge config_base.yaml — seules les clés spécifiques à cette API sont définies
+
+api_id:     "E07_FS"
+
+input:
+  type:       "sqlserver"
+  table_name: "E7EtatBcmFluxSortants"
+
+columns:
+  field:           "Devise"
+  field_out:       "Devise_iso"
+  ref_transaction: "ReferenceTransaction"
+  ref_banque:      "RefBanque"
+
+outlier_tag:      "OUTLIER"
+referentiel_path: "devise/referentiel/devise_referentiel.json"
+
+output:
+  dir: "devise/outputs/E07_FS/"

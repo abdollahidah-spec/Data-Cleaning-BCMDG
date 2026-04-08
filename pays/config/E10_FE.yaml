@@ -1,0 +1,20 @@
+# pays/config/E10_FE.yaml
+# Surcharge config_base.yaml
+
+api_id:  "E10_FE"
+
+input:
+  type:       "sqlserver"
+  table_name: "E10EtatBcmFluxEntrants"
+
+columns:
+  field:           "Pays"
+  field_out:       "Pays_iso2"
+  ref_transaction: "ReferenceTransaction"
+  ref_banque:      "RefBanque"
+
+outlier_tag: "OUTLIER"
+use_llm:     true
+
+output:
+  dir: "pays/outputs/E10_FE/"
