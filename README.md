@@ -84,7 +84,7 @@ Data-Cleaning-BCMDG/
 **Prérequis :**
 - Python 3.10+
 - Accès réseau à la base SQL Server BCM (`172.16.50.100:1433`)
-- [Ollama](https://ollama.com) installé localement avec le modèle `qwen2.5:14b` (pipeline Pays uniquement)
+- [Ollama](https://ollama.com) installé localement avec le modèle `qwen2.5:14b` : ollama run qwen2.5:14b # Via le terminal 
 - Bibliothèques listées dans `requirements.txt`
 
 **Étapes :**
