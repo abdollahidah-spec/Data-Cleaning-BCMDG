@@ -84,7 +84,8 @@ Data-Cleaning-BCMDG/
 **Prérequis :**
 - Python 3.10+
 - Accès réseau à la base SQL Server BCM (`172.16.50.100:1433`)
-- [Ollama](https://ollama.com) installé localement avec le modèle `qwen2.5:14b` : ollama run qwen2.5:14b # Via le terminal 
+- [Ollama](https://ollama.com) installé localement avec le modèle `qwen2.5:14b` : `ollama run qwen2.5:14b` # Via le terminal
+- `paraphrase-multilingual-mpnet-base-v2` téléchargé localement et utilisé via la bibliothèque `sentence-transformers`
 - Bibliothèques listées dans `requirements.txt`
 
 **Étapes :**
