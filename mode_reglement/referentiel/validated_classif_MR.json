@@ -1,0 +1,16 @@
+{
+  "_comment": "Cache warm-start NA exclu",
+  "version": "1.0.0",
+  "classif": {
+    "TL": "TL",
+    "CD": "CD",
+    "TR": "TL",
+    "TL ": "TL",
+    "CD                              ": "CD",
+    "SWIFT": "OUTLIER",
+    "string": "OUTLIER",
+    "FACTURE": "OUTLIER",
+    "TL    ": "TL",
+    "TL                              ": "TL"
+  }
+}

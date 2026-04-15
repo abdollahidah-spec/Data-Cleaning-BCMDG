@@ -9,7 +9,7 @@ input:
 
 columns:
   field:           "Devise"
-  field_out:       "Devise_iso"
+  field_out:       "Devise_Normalisée"
   ref_transaction: "NomCorrespondant"
   ref_banque:      "RefBanque"
 

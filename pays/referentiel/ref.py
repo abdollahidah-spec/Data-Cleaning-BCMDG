@@ -937,32 +937,6 @@ def treating_pays(
 
     return df
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 {
   "_comment": "Mots-cles adresse pour la resolution du champ Pays. Modifiable sans toucher au code Python.",
   "version": "1.0.0",
@@ -1047,7 +1021,6 @@ def treating_pays(
     ["bern","CH"], ["graz","AT"], ["oslo","NO"], ["cork","IE"], ["brno","CZ"],
     ["kyiv","UA"], ["kiev","UA"], ["yiwu","CN"], ["cebu","PH"], ["pune","IN"],
     ["lima","PE"], ["fes","MA"], ["tvz","MR"],
-
     ["4 rue de la chine bat gali ecs 50046","FR"], ["office and charites committies sharq","KW"],
     ["haye riad 141 avenue des palmiers","MA"], ["lot numero cite mamelles aviation","SN"],
     ["44 th street east between 1 and","US"], ["rue des technologies 1 be 4432","BE"],

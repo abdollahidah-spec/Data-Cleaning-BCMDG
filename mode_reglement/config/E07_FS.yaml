@@ -9,7 +9,7 @@ input:
 
 columns:
   field:           "ModeReglement"
-  field_out:       "ModeReglement_iso"
+  field_out:       "ModeReglement_Normalisé"
   ref_transaction: "ReferenceTransaction"
   ref_banque:      "RefBanque"
 

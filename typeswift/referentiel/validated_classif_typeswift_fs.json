@@ -1,0 +1,20 @@
+{
+  "_comment": "Cache warm-start NA exclu",
+  "version": "1.0.0",
+  "classif": {
+    "0": "OUTLIER",
+    "103": "MT 103",
+    "MT103": "MT 103",
+    "MT202": "MT 202",
+    "MT103 ": "MT 103",
+    "MT104": "MT 104",
+    "MT103                           ": "MT 103",
+    "pacs.008": "pacs.008",
+    "pacs.009": "pacs.009",
+    "string": "OUTLIER",
+    "MT410": "OUTLIER",
+    "MT710": "OUTLIER",
+    "MT754": "OUTLIER",
+    "MT101": "OUTLIER"
+  }
+}

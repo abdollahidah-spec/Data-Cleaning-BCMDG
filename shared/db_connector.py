@@ -9,80 +9,33 @@ import pandas as pd
 from dotenv import load_dotenv
 load_dotenv()
 
-
-DB_USER     = "data_user"
-DB_PASSWORD = "Bc@M!D32D"
-DB_HOST     = "172.16.50.100"
-DB_PORT     = "1433"
-DB_NAME     = "DATAWAREHOUSE_SA_PROD"
-DB_DRIVER   = "ODBC Driver 17 for SQL Server"
-
-
-def _get_engine():
-    """
-    Crée et retourne un moteur SQLAlchemy vers la base SQL Server BCM.
-
-    Returns:
-        sqlalchemy.engine.Engine
-
-    Raises:
-        ImportError si sqlalchemy ou pyodbc ne sont pas installés.
-    """
-    from sqlalchemy import create_engine
-    from sqlalchemy.engine import URL
-
-    connection_url = URL.create(
-        "mssql+pyodbc",
-        username=DB_USER,
-        password=DB_PASSWORD,
-        host=DB_HOST,
-        port=DB_PORT,
-        database=DB_NAME,
-        query={"driver": DB_DRIVER},
-    )
-    return create_engine(connection_url)
-
-
-def load_table(table_name: str) -> pd.DataFrame:
-    """
-    Charge toutes les colonnes d'une table SQL Server.
-
-    Args:
-        table_name : nom de la table (ex: 'E10FE')
-
-    Returns:
-        DataFrame complet de la table.
-    """
-    from sqlalchemy import text
-
-    engine = _get_engine()
-    query  = text(f"SELECT * FROM [DATAWAREHOUSE_SA_PROD].[dbo].[{table_name}]")
-    with engine.connect() as conn:
-        df = pd.read_sql(query, conn)
-    return df
-
-'''
 def get_engine():
     from sqlalchemy import create_engine
     from sqlalchemy.engine import URL
-    url = URL.create(
-        "mssql+pyodbc",
-        username=os.getenv("DB_USER"), 
-        password=os.getenv("DB_PASSWORD"),
-        host=os.getenv("DB_HOST"), 
-        port=os.getenv("DB_PORT"),
-        database=os.getenv("DB_NAME"), 
-        query={"driver": os.getenv("DB_DRIVER")})
+    driver = os.getenv("DB_DRIVER", "ODBC Driver 17 for SQL Server")
+    url = URL.create("mssql+pyodbc",
+        username=os.getenv("DB_USER"), password=os.getenv("DB_PASSWORD"),
+        host=os.getenv("DB_HOST"), port=os.getenv("DB_PORT"),
+        database=os.getenv("DB_NAME"), query={"driver": driver})
     return create_engine(url)
 
-def load_table(table_name: str) -> pd.DataFrame:
-    """Charge toutes les colonnes d'une table SQL Server."""
-    from sqlalchemy import text
-    db = os.getenv("DB_NAME", "DATAWAREHOUSE_SA_PROD")
-    with get_engine().connect() as conn:
-        return pd.read_sql(text(f"SELECT * FROM [{db}].[dbo].[{table_name}]"), conn)
-'''
+_DATE_FILTER_FIELDS = {"pays", "natureeconomique"}
 
+def load_table(table_name: str, field: str = "") -> pd.DataFrame:
+    """
+    Charge toutes les colonnes d'une table SQL Server.
+
+    Si le champ demandé est Pays ou NatureEconomique, applique automatiquement
+    un filtre sur dtCr > '2024-01-01' pour limiter le volume de données.
+    """
+    from sqlalchemy import text
+    db      = os.getenv("DB_NAME", "DATAWAREHOUSE_SA_PROD")
+    where   = ""
+    if field.lower() in _DATE_FILTER_FIELDS:
+        where = " WHERE dtCr > '2024-01-01'"
+    query = f"SELECT * FROM [{db}].[dbo].[{table_name}]{where}"
+    with get_engine().connect() as conn:
+        return pd.read_sql(text(query), conn)
 
 def load_file(path: str, cfg: dict) -> pd.DataFrame:
     """Charge un fichier CSV ou Excel."""

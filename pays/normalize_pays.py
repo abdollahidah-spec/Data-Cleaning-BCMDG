@@ -216,7 +216,7 @@ def _build_lookup() -> tuple[dict[str, str], set[str]]:
         # ── Malte ──
         "malta": "MT",
         # ── Islande ──
-        "iceland": "IS", "island": "IS", "islande": "IS",
+        "iceland": "IS",
         # ── Ukraine ──
         "ukraine": "UA",
         # ── Russie ──
@@ -238,8 +238,6 @@ def _build_lookup() -> tuple[dict[str, str], set[str]]:
         "georgia": "GE",
         # ── Arménie ──
         "armenia": "AM",
-        # ── Marshall ──
-        "marshall" : "MH",
         # ── Azerbaïdjan ──
         "azerbaijan": "AZ",
         # ── Turquie ──
@@ -288,7 +286,7 @@ def _build_lookup() -> tuple[dict[str, str], set[str]]:
         "rep democratique du congo": "CD", "congo rep democrat": "CD",
         # ── Maurice ──
         "mauritius": "MU", "iles maurices": "MU", "ile maurice": "MU",
-        "republic of morris": "MU", "maurice": "MU",
+        "republic of morris": "MU",
         # ── Afrique du Sud ──
         "south africa": "ZA", "rep of south africa": "ZA",
         "100 grayston drive sandton jhb": "ZA",
@@ -306,8 +304,6 @@ def _build_lookup() -> tuple[dict[str, str], set[str]]:
         "arabie saoudite": "SA", "arabie saudi": "SA", "ksa": "SA",
         "kingdom of saudi arabia": "SA", "arabe saoudi": "SA",
         "32040 jeddah 21428 saudi": "SA",
-
-        "bahrea n": "BH", "gra ce": "GR", "bahrein": "BH",
         # ── Émirats ──
         "emirats arabes unis": "AE", "uae": "AE", "uea": "AE",
         "dubai": "AE", "dubaie": "AE", "head office baniyas road": "AE",
@@ -381,7 +377,7 @@ def _build_lookup() -> tuple[dict[str, str], set[str]]:
         # ── Mexique ──
         "mexico": "MX",
         # ── Brésil ──
-        "bresil": "BR", "brazil": "BR", "bressil": "BR",
+        "bresil": "BR", "brazil": "BR",
         # ── Argentine ──
         "argentina": "AR",
         # ── Chili ──
@@ -491,58 +487,52 @@ def get_iso2_with_method(raw_value: str) -> tuple[Optional[str], Optional[str]]:
 # 6.  RÈGLE NoAs / OUTLIER  (appliquée après résolution, avec ref_col)
 #
 #  Cas possibles :
-#   Pays == "NoAs"  +  Ref NA                →  NoAs   (bruit confirmé)
+#   Pays == "NoAs"  +  Ref vide/null/string  →  NoAs   (bruit confirmé)
 #   Pays == "NoAs"  +  Ref non vide          →  OUTLIER
-#   Pays vide/null  +  Ref vide/null/string  →  OUTLIER
+#   Pays vide/null  +  Ref vide/null/string  →  NoAs
 #   Pays vide/null  +  Ref non vide          →  OUTLIER
 #   Pays == "NA"    +  Ref non vide          →  "NA"   (Namibie)
-#   Pays == "NA"    +  Ref vide              →  OUTLIER
+#   Pays == "NA"    +  Ref vide              →  NoAs
 #   Valeur non-pays (OUTLIER venant étape 1) →  OUTLIER (toujours, ref ou pas)
 # ══════════════════════════════════════════════════════════════════════════════
 
-
 def _apply_na_rule_direct(
-    pays_raw:    str,
-    ref_raw:     str,
+    pays_raw: str,
+    ref_raw:  str,
     current_iso: Optional[str],
     current_mth: Optional[str],
 ) -> tuple:
     """
     Règle NoAs / OUTLIER pour le champ Pays.
 
-    NoAs  → UNIQUEMENT si pays ∈ {"NA","NoAs","Naos"} ET ref == "NA" (string exact)
-    NA    → si pays == "NA" ET ref est une vraie référence (Namibie)
-    OUTLIER → tout le reste
+    NoAs UNIQUEMENT si Pays IN ("NA", "NoAs", "Naos", vide/null)  ET  Ref vide/null/nan/none/string.
+    Namibie : Pays == "NA"  ET  Ref est une vraie valeur → "NA".
+    Tout le reste non identifié → OUTLIER.
     """
     pays_lower = pays_raw.strip().lower()
-    ref_upper  = ref_raw.strip().upper()
-    ref_empty  = ref_upper in ("", "NAN", "NONE", "NULL", "STRING", "NA")
+    ref_empty  = _ref_is_empty(ref_raw)
 
-    # Pays == "NoAs" ou "Naos" (littéral)
-    if pays_lower in ("noas", "naos"):
-        if ref_upper == "NA":
-            return "NoAs", "NoAs"
-        return "OUTLIER", "OUTLIER"   # ref présente OU vide → toujours OUTLIER
+    # Pays vide / null / nan
+    if pays_lower in ("", "nan", "none", "null"):
+        return ("NoAs", "NoAs") if ref_empty else ("OUTLIER", "OUTLIER")
 
     # Pays == "NA"
     if pays_lower == "na":
-        if ref_upper == "NA":
-            return "NoAs", "NoAs"
-        if not ref_empty:
-            return "NA", "MAP"        # vraie référence → Namibie
-        return "OUTLIER", "OUTLIER"   # ref vide/null/string → OUTLIER
+        if ref_empty:
+            return "NoAs", "NoAs"       # NA + ref vide → NoAs
+        return "NA", "MAP"              # NA + ref réelle → Namibie
 
-    # Pays vide / null → toujours OUTLIER
-    if pays_lower in ("", "nan", "none", "null"):
-        return "OUTLIER", "OUTLIER"
+    # Pays == "NoAs" ou "Naos" (valeur littérale dans les données)
+    if pays_lower in ("noas", "naos"):
+        return ("NoAs", "NoAs") if ref_empty else ("OUTLIER", "OUTLIER")
 
-    # Valeur non identifiée
+    # Valeur non identifiée par la résolution
     if current_iso == "OUTLIER":
         return "OUTLIER", "OUTLIER"
 
     return current_iso, current_mth
 
-'''
+
 def _apply_na_rule(
     row: pd.Series,
     pays_col: str,
@@ -555,7 +545,7 @@ def _apply_na_rule(
     ref_raw     = str(row.get(ref_col,  "")).strip()
     ref_empty   = _ref_is_empty(ref_raw)
 
-    current_iso = row["Pays_iso2"]
+    current_iso = row["Pays_Normalisé"]
     current_mth = row["Pays_method"]
 
     # ── Valeur "NoAs" littérale dans Pays ──────────────────────────────────────
@@ -585,7 +575,7 @@ def _apply_na_rule(
     #     return "OUTLIER", "OUTLIER"
 
     return current_iso, current_mth
-'''
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 7.  COUCHE QWEN via OLLAMA
@@ -649,7 +639,7 @@ def _call_qwen_batch(values: list[str]) -> dict[str, Optional[str]]:
 
 def enrich_with_llm(
     df: pd.DataFrame,
-    iso_col:    str = "Pays_iso2",
+    iso_col:    str = "Pays_Normalisé",
     method_col: str = "Pays_method",
     pays_col:   str = "Pays",
     batch_size: int = 25,
@@ -689,12 +679,33 @@ def enrich_with_llm(
 # 8.  POINT D'ENTRÉE  treating_pays()
 # ══════════════════════════════════════════════════════════════════════════════
 
+def load_warm_start_pays(api_id: str = "E07_FS") -> dict:
+    """
+    Cache warm-start Pays. Cle = valeur brute exacte. NA exclu.
+    Fichiers : validated_classif_Pays_FS.json / OCD / FE
+    """
+    # Mapping api_id → nom de fichier
+    fname_map = {
+        "E07_FS":  "validated_classif_Pays_FS.json",
+        "E08_OCD": "validated_classif_Pays_OCD.json",
+        "E10_FE":  "validated_classif_Pays_FE.json",
+    }
+    fname = fname_map.get(api_id, f"validated_classif_Pays_{api_id}.json")
+    path  = Path(__file__).parent / "referentiel" / fname
+    if not path.exists():
+        print(f"  [Warm-start Pays] Fichier absent : {path.name}")
+        return {}
+    return json.load(open(path, encoding="utf-8")).get("classif", {})
+
+
 def treating_pays(
-    df: pd.DataFrame,
+    df:         pd.DataFrame,
     pays_col:   str  = "Pays",
     ref_col:    str  = "ReferenceTransaction",
     use_llm:    bool = True,
     batch_size: int  = 25,
+    warm_start: bool = False,
+    api_id:     str  = "E07_FS",
 ) -> pd.DataFrame:
     """
     Ajoute au DataFrame :
@@ -708,6 +719,12 @@ def treating_pays(
     """
     df = df.copy()
 
+    # Warm-start : chargement du cache validé
+    ws_cache: dict = {}
+    if warm_start:
+        ws_cache = load_warm_start_pays(api_id)
+        #print(f"  Warm-start Pays ({api_id}) : {len(ws_cache)} entrees chargees")
+
     # ── ÉTAPE 1 : nettoyage sur valeurs uniques ───────────────────────────────
     unique_pays = df[pays_col].dropna().unique()
     clean_map   = {v: clean_pays(str(v)) for v in unique_pays}
@@ -717,12 +734,37 @@ def treating_pays(
     # ── ÉTAPE 2 : résolution ISO-2 sur valeurs uniques ────────────────────────
     # get_iso2_with_method est @lru_cache mais df.apply l'appelle N fois.
     # On l'appelle ici UNE SEULE FOIS par valeur unique puis on mappe.
+    # Index insensible à la casse — construit une fois pour le lookup
+    ws_cache_upper: dict = {k.strip().upper(): v for k, v in ws_cache.items()} if warm_start else {}
+
     iso_map: dict = {}
     for v in unique_pays:
-        iso_map[v] = get_iso2_with_method(str(v))
+        if warm_start:
+            s = str(v)
+            # Essai 1 : exact
+            if s in ws_cache:
+                iso_map[v] = (ws_cache[s], "WARM"); continue
+            # Essai 2 : strip
+            if s.strip() in ws_cache:
+                iso_map[v] = (ws_cache[s.strip()], "WARM"); continue
+            # Essai 3 : rstrip
+            if s.rstrip() in ws_cache:
+                iso_map[v] = (ws_cache[s.rstrip()], "WARM"); continue
+            # Essai 4 : insensible à la casse (strip + upper)
+            key_up = s.strip().upper()
+            if key_up in ws_cache_upper:
+                iso_map[v] = (ws_cache_upper[key_up], "WARM"); continue
 
-    df["Pays_iso2"]   = df[pays_col].map(lambda v: iso_map.get(v, (None, None))[0])
+        iso_map[v] = get_iso2_with_method(str(v))
+        # if warm_start:
+        #     print(f"    MISS FS: {repr(str(v))}")
+        # iso_map[v] = get_iso2_with_method(str(v))
+
+
+    df["Pays_Normalisé"]   = df[pays_col].map(lambda v: iso_map.get(v, (None, None))[0])
     df["Pays_method"] = df[pays_col].map(lambda v: iso_map.get(v, (None, None))[1])
+
+    df["_ws_hit"] = df[pays_col].map(lambda v: iso_map.get(v,(None,None))[1] == "WARM")
 
     # ── ÉTAPE 3 : règle NoAs / OUTLIER sur paires uniques (pays, ref) ─────────
     # La règle dépend de DEUX colonnes → on déduplique sur les paires uniques.
@@ -748,15 +790,15 @@ def treating_pays(
             "_pair_mth": pair_mth,
         })
         df = df.merge(pair_df, on=[pays_col, ref_col], how="left")
-        df["Pays_iso2"]   = df["_pair_iso"].where(df["_pair_iso"].notna(), df["Pays_iso2"])
+        df["Pays_Normalisé"]   = df["_pair_iso"].where(df["_pair_iso"].notna(), df["Pays_Normalisé"])
         df["Pays_method"] = df["_pair_mth"].where(df["_pair_mth"].notna(), df["Pays_method"])
         df.drop(columns=["_pair_iso", "_pair_mth"], inplace=True)
 
     # ── ÉTAPE 4 : LLM sur les "check" (déjà dédupliqué dans enrich_with_llm) ──
     if use_llm:
-        df = enrich_with_llm(df, iso_col="Pays_iso2", method_col="Pays_method",
+        df = enrich_with_llm(df, iso_col="Pays_Normalisé", method_col="Pays_method",
                              pays_col=pays_col, batch_size=batch_size)
     else:
-        df["Pays_check"] = df["Pays_iso2"] == "check"
+        df["Pays_check"] = df["Pays_Normalisé"] == "check"
 
     return df

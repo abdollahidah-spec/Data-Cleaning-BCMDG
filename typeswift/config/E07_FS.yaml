@@ -8,7 +8,7 @@ input:
 
 columns:
   field:           "TypeSwfit"
-  field_out:       "TypeSwift_norm"
+  field_out:       "TypeSwift_Normalisé"
   ref_transaction: "ReferenceTransaction"
   ref_banque:      "RefBanque"
 

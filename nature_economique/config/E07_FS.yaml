@@ -1,0 +1,24 @@
+# nature_economique/config/E07_FS.yaml
+api_id:     "E07_FS"
+flux_type:  "FS"
+
+input:
+  type:       "sqlserver"
+  table_name: "E7EtatBcmFluxSortants"
+
+columns:
+  field:           "NatureEconomique"
+  field_out:       "NatEco_Label"
+  ref_transaction: "ReferenceTransaction"
+  ref_banque:      "RefBanque"
+
+outlier_tag:        "OUTLIER"
+
+# Chemin vers le modèle embedding local
+model_embed:        'C:\\models\\mpnet-base-v2'
+seuil_embed:        0.84
+seuil_embed_court:  0.95
+tokens_par_ligne:   35
+
+output:
+  dir: "nature_economique/outputs/E07_FS/"

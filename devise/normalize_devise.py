@@ -6,15 +6,19 @@ Toute la donnée de référence est chargée depuis devise_referentiel.json.
 Aucune constante métier n'est définie dans ce fichier.
 
 COLONNES AJOUTÉES :
-  Devise_clean   — valeur nettoyée (sans espaces, sans .0, majuscules)
-  Devise_iso     — code ISO 4217 alpha-3 / 'NA' / 'OUTLIER'
-  Devise_method  — 'MAP' / 'NUM' / 'ALIAS' / 'STRIP' / 'NA' / 'OUTLIER'
-  Devise_check   — True si OUTLIER
+  Devise_clean       — valeur nettoyée (sans espaces, sans .0, majuscules)
+  Devise_Normalisée  — code ISO 4217 alpha-3 / 'NA' / 'OUTLIER'
+  Devise_method      — 'MAP' / 'NUM' / 'ALIAS' / 'STRIP' / 'NA' / 'OUTLIER' / 'WARM'
+  Devise_check       — True si OUTLIER
 
-RÈGLE NA / OUTLIER :
-  Devise vide/null/NA  +  Ref vide/null/NA/string  →  'NA'
-  Devise vide/null/NA  +  Ref non vide             →  OUTLIER
-  Valeur non identifiée                            →  OUTLIER
+RÈGLE NA :
+  Devise == 'NA'  ET  Ref == 'NA'   → 'NA'
+  Devise == 'NA'  ET  Ref != 'NA'   → OUTLIER
+  Devise vide / null                → OUTLIER
+  Valeur non identifiée             → OUTLIER
+
+WARM-START :
+  Si activé, lookup sur la valeur brute dans validated_classif.json avant la cascade.
 """
 from __future__ import annotations
 
@@ -23,13 +27,11 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
 import pandas as pd
 
 from shared.base_pipeline import apply_na_rule
 
-# ══════════════════════════════════════════════════════════════════════════════
-# REGEX (purement techniques — pas de données métier)
-# ══════════════════════════════════════════════════════════════════════════════
 
 _RE_FLOAT_SUF = re.compile(r"\.0+$")
 _RE_SPACES    = re.compile(r"\s+")
@@ -37,30 +39,16 @@ _RE_SYMBOLS   = re.compile(r"[^A-Za-z0-9]")
 _RE_3DIGITS   = re.compile(r"^\d{3}$")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# CHARGEMENT RÉFÉRENTIEL
-# ══════════════════════════════════════════════════════════════════════════════
-
 @dataclass
 class DeviseReferentiel:
-    version:   str
-    valid:     set  = field(default_factory=set)   # codes ISO alpha-3 valides
-    num_map:   dict = field(default_factory=dict)  # numérique → alpha-3
-    aliases:   dict = field(default_factory=dict)  # alias → alpha-3
-    noise:     set  = field(default_factory=set)   # bruit connu → OUTLIER direct
+    version: str
+    valid:   set  = field(default_factory=set)
+    num_map: dict = field(default_factory=dict)
+    aliases: dict = field(default_factory=dict)
+    noise:   set  = field(default_factory=set)
 
 
-def load_devise_referentiel(path: str | Path) -> DeviseReferentiel:
-    """
-    Charge devise_referentiel.json et retourne un DeviseReferentiel.
-
-    Structure attendue du JSON :
-        version       : "1.0.0"
-        valid_iso4217 : ["USD", "EUR", ...]
-        num_to_iso    : {"840": "USD", "978": "EUR", ...}
-        aliases       : {"CFA": "XOF", "MRO": "MRU", ...}
-        known_noise   : ["STRING", "CHBANK", ...]
-    """
+def load_devise_referentiel(path):
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     return DeviseReferentiel(
@@ -72,18 +60,15 @@ def load_devise_referentiel(path: str | Path) -> DeviseReferentiel:
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# NETTOYAGE
-# ══════════════════════════════════════════════════════════════════════════════
+def load_warm_start_devise() -> dict:
+    """Cache validé : clé = valeur brute rstrip, valeur = code ISO 4217."""
+    path = Path(__file__).parent / "referentiel" / "validated_classif_devise.json"
+    if not path.exists():
+        return {}
+    return json.load(open(path, encoding="utf-8")).get("classif", {})
+
 
 def clean_devise(raw: str) -> str:
-    """
-    Nettoie une valeur brute :
-      1. Trim
-      2. Supprime suffixe .0 / .00  (840.0 → 840)
-      3. Supprime les espaces internes
-      4. MAJUSCULES
-    """
     s = str(raw).strip()
     if not s or s.lower() in ("nan", "none", "null"):
         return ""
@@ -92,65 +77,32 @@ def clean_devise(raw: str) -> str:
     return s.upper().strip()
 
 
-def _strip_description(s: str) -> str:
-    """Extrait le code avant une description entre parenthèses. CAD (CANADIAN DOLLAR) → CAD"""
+def _strip_description(s):
     return s[:s.index("(")].strip() if "(" in s else s
 
 
-def _alphanum_only(s: str) -> str:
-    """Retire tout caractère non alphanumérique."""
+def _alphanum_only(s):
     return _RE_SYMBOLS.sub("", s)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# RÉSOLUTION
-# ══════════════════════════════════════════════════════════════════════════════
-
-def _resolve_devise(raw_value: str, ref: DeviseReferentiel) -> tuple[Optional[str], Optional[str]]:
-    """
-    Résout une valeur brute en code ISO 4217 alpha-3.
-    Toutes les données métier (codes valides, mappings, aliases) viennent de ref.
-
-    Cascade :
-        A. Vide / NaN              → (None, None)
-        B. Bruit connu             → (OUTLIER, OUTLIER)
-        C. Code ISO alpha-3 direct → (USD, MAP)
-        D. Code numérique          → (USD, NUM)   via ref.num_map
-        E. Alias connu             → (XOF, ALIAS) via ref.aliases
-        F. Strip description ()    → (CAD, STRIP)
-        G. Nettoyage alphanum      → (USD, STRIP) ex: USDFf → USD
-        H. Non identifié           → (OUTLIER, OUTLIER)
-    """
+def _resolve_devise(raw_value, ref):
     if pd.isna(raw_value) or str(raw_value).strip() == "":
         return None, None
-
     cleaned = clean_devise(str(raw_value))
     if not cleaned:
         return None, None
-
-    # B. Bruit connu
     if cleaned in ref.noise:
         return "OUTLIER", "OUTLIER"
-
-    # C. Code ISO direct
     if cleaned in ref.valid:
         return cleaned, "MAP"
-
-    # D. Code numérique (ex: 978 → EUR)
     if _RE_3DIGITS.match(cleaned) and cleaned in ref.num_map:
         return ref.num_map[cleaned], "NUM"
-
-    # E. Alias (ex: CFA → XOF, MRO → MRU)
     if cleaned in ref.aliases:
         return ref.aliases[cleaned], "ALIAS"
-
-    # F. Strip description (ex: CAD (CANADIAN DOLLAR) → CAD)
     stripped = _strip_description(cleaned)
     if stripped != cleaned:
         if stripped in ref.valid:   return stripped, "STRIP"
         if stripped in ref.aliases: return ref.aliases[stripped], "STRIP"
-
-    # G. Nettoyage alphanum (ex: USDFf → USDFF → USD)
     anum = _alphanum_only(cleaned)
     if anum in ref.valid:   return anum, "STRIP"
     if anum in ref.aliases: return ref.aliases[anum], "STRIP"
@@ -158,64 +110,71 @@ def _resolve_devise(raw_value: str, ref: DeviseReferentiel) -> tuple[Optional[st
         prefix = anum[:3]
         if prefix in ref.valid:   return prefix, "STRIP"
         if prefix in ref.aliases: return ref.aliases[prefix], "STRIP"
-
-    # H. Non identifié
     return "OUTLIER", "OUTLIER"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# POINT D'ENTRÉE
-# ══════════════════════════════════════════════════════════════════════════════
-
 def treating_devise(
     df:         pd.DataFrame,
-    devise_col: str = "Devise",
-    ref_col:    str = "ReferenceTransaction",
+    devise_col: str              = "Devise",
+    ref_col:    str              = "ReferenceTransaction",
     ref:        DeviseReferentiel = None,
+    warm_start: bool             = False,
 ) -> pd.DataFrame:
     """
-    Normalise la colonne Devise. Traitement sur valeurs uniques puis merge (performant).
+    Normalise la colonne Devise.
 
-    Args:
-        df         : DataFrame source
-        devise_col : colonne Devise brute
-        ref_col    : colonne ReferenceTransaction (ou NumCredoc pour E09)
-        ref        : référentiel chargé via load_devise_referentiel()
-                     Si None → chargé automatiquement depuis devise_referentiel.json
-
-    Ajoute :
-        Devise_clean   — valeur nettoyée
-        Devise_iso     — code ISO 4217 / 'NA' / 'OUTLIER'
-        Devise_method  — méthode : MAP / NUM / ALIAS / STRIP / NA / OUTLIER
-        Devise_check   — True si OUTLIER
+    warm_start : si True, résout d'abord via validated_classif.json (clé brute rstrip)
+                 avant la cascade normale.
     """
     df = df.copy()
 
-    # Référentiel par défaut
     if ref is None:
         default = Path(__file__).parent / "referentiel" / "devise_referentiel.json"
         ref = load_devise_referentiel(default)
 
-    # 1. Nettoyage sur valeurs uniques → merge
+    ws_cache: dict = {}
+    if warm_start:
+        ws_cache = load_warm_start_devise()
+        #print(f"  Warm-start Devise : {len(ws_cache)} entrées chargées")
+
+    # 1. Nettoyage sur valeurs uniques
     unique_vals = df[devise_col].dropna().unique()
     clean_map   = {v: clean_devise(str(v)) for v in unique_vals}
     df["Devise_clean"] = df[devise_col].map(clean_map).fillna("")
 
-    # 2. Résolution sur valeurs uniques → merge (évite df.apply ligne par ligne)
-    iso_map = {v: _resolve_devise(str(v), ref) for v in unique_vals}
-    df["Devise_iso"]    = df[devise_col].map(lambda v: iso_map.get(v, (None, None))[0])
-    df["Devise_method"] = df[devise_col].map(lambda v: iso_map.get(v, (None, None))[1])
+    # 2. Résolution — warm-start en premier (clé brute rstrip), cascade si absent
+    iso_map: dict = {}
+    for v in unique_vals:
+        if warm_start:
+            # Essai 1 : clé exacte (valeur brute telle quelle)
+            if str(v) in ws_cache:
+                iso_map[v] = (ws_cache[str(v)], "WARM")
+                continue
+            # Essai 2 : rstrip (gère les variantes d'espaces absentes du cache)
+            key_rs = str(v).rstrip()
+            if key_rs in ws_cache:
+                iso_map[v] = (ws_cache[key_rs], "WARM")
+                continue
+        iso_map[v] = _resolve_devise(str(v), ref)
 
-    # 3. Règle NA — appliquée ligne par ligne (signature row-based comme dans les notebooks)
+    df["Devise_Normalisée"] = df[devise_col].map(lambda v: iso_map.get(v, (None, None))[0])
+    df["Devise_method"]     = df[devise_col].map(lambda v: iso_map.get(v, (None, None))[1])
+
+    # Flag warm-start : enregistré AVANT apply_na_rule qui peut écraser la méthode
+    df["_ws_hit"] = df["Devise_method"] == "WARM"
+
+    # 3. Règle NA — toujours en dernier, peu importe warm-start
     if ref_col in df.columns:
         fixed = df.apply(
-            lambda row: apply_na_rule(row, devise_col, ref_col, "Devise_iso", "Devise_method"),
+            lambda row: apply_na_rule(
+                row, devise_col, ref_col, "Devise_Normalisée", "Devise_method"
+            ),
             axis=1,
             result_type="expand",
         )
-        df["Devise_iso"]    = fixed[0]
-        df["Devise_method"] = fixed[1]
+        df["Devise_Normalisée"] = fixed[0]
+        df["Devise_method"]     = fixed[1]
 
     # 4. Flag
-    df["Devise_check"] = df["Devise_iso"] == "OUTLIER"
+    df["Devise_check"] = df["Devise_Normalisée"] == "OUTLIER"
     return df

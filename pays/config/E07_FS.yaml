@@ -9,7 +9,7 @@ input:
 
 columns:
   field:           "Pays"
-  field_out:       "Pays_iso2"
+  field_out:       "Pays_Normalisé"
   ref_transaction: "ReferenceTransaction"
   ref_banque:      "RefBanque"
 

@@ -23,6 +23,51 @@ from typing import Optional
 import pandas as pd
 import yaml
 
+# ══════════════════════════════════════════════════════════════════════════════
+# RÈGLE NA — commune à tous les champs
+# ══════════════════════════════════════════════════════════════════════════════
+
+def apply_na_rule(
+    row:       "pd.Series",
+    field_col: str,
+    ref_col:   str,
+    iso_col:   str,
+    mth_col:   str,
+) -> tuple:
+    """
+    Règle NA/OUTLIER identique pour tous les champs BCM.
+
+    Logique :
+      field == 'NA'  ET  ref == 'NA'   → ('NA', 'NA')
+      field == 'NA'  ET  ref != 'NA'   → ('OUTLIER', 'OUTLIER')
+      field vide / null / NaN          → ('OUTLIER', 'OUTLIER')
+      valeur non identifiée (OUTLIER)  → ('OUTLIER', 'OUTLIER')
+      sinon                            → (current_iso, current_mth) inchangé
+
+    Args:
+        row       : ligne du DataFrame (pd.Series)
+        field_col : nom de la colonne brute    (ex: "Devise", "ModeReglement")
+        ref_col   : nom de la colonne ref      (ex: "ReferenceTransaction")
+        iso_col   : nom de la colonne iso_out  (ex: "Devise_normalisee", "ModeReglement_normalisee")
+        mth_col   : nom de la colonne method   (ex: "Devise_method", "ModeReglement_method")
+    """
+    field_upper = str(row.get(field_col, "")).strip().upper()
+    ref_upper   = str(row.get(ref_col,   "")).strip().upper()
+    current_iso = row[iso_col]
+    current_mth = row[mth_col]
+
+    if field_upper == "NA":
+        return ("NA", "NA") if ref_upper == "NA" else ("OUTLIER", "OUTLIER")
+
+    if field_upper in ("", "NAN", "NONE", "NULL"):
+        return "OUTLIER", "OUTLIER"
+
+    if current_iso == "OUTLIER":
+        return "OUTLIER", "OUTLIER"
+
+    return current_iso, current_mth
+
+
 from shared.db_connector import load_table, load_file
 from shared.writer import write_csv, write_excel_sheets
 
@@ -71,7 +116,8 @@ class BasePipeline:
         return avail[:idx] + [col_out] + avail[idx:]
 
     def run(self, config_path: str | Path,
-            override_input: Optional[str] = None) -> dict:
+            override_input: Optional[str] = None,
+            warm_start: bool = False) -> dict:
         """
         Pipeline complet pour une API.
 
@@ -80,6 +126,8 @@ class BasePipeline:
             Source fichier local → pas de tag
         """
         cfg    = load_config(config_path)
+        if warm_start:
+            cfg["warm_start"] = True
         api_id = cfg["api_id"]
         inp    = cfg["input"]
         print(f"\n[{api_id}] Démarrage...")
@@ -93,8 +141,9 @@ class BasePipeline:
                 df_raw = load_file(override_input, cfg)
             else:
                 table = inp["table_name"]
+                field = cfg.get("columns", {}).get("field", "")
                 print(f"  [{api_id}] Source : SQL Server → {table} (historique)")
-                df_raw = load_table(table)
+                df_raw = load_table(table, field=field)
             print(f"  [{api_id}] {len(df_raw):,} lignes chargées")
 
             # 2. Normalisation
@@ -106,8 +155,39 @@ class BasePipeline:
             n           = len(df_out)
             n_ok        = (~df_out[col_out].isin([outlier_tag]) & df_out[col_out].notna()).sum()
             n_out       = (df_out[col_out] == outlier_tag).sum()
-            print(f"  [{api_id}] Résolues: {n_ok:,} | Outliers: {n_out:,} | Total: {n:,}")
+            
+            # Stats warm-start (si colonne _method présente et warm_start actif)
+            if cfg.get("warm_start", False):
+                field_col = cfg["columns"]["field"]
+                # Utiliser _ws_hit (flag avant apply_na_rule) si disponible
+                if "_ws_hit" in df_out.columns:
+                    warm_mask    = df_out["_ws_hit"] == True
+                    cascade_mask = df_out["_ws_hit"] == False
+                    # Exclure les NA/vides de la cascade (gérés par apply_na_rule, pas cascade réelle)
+                    na_mask      = df_out[field_col].isna() | (df_out[field_col].astype(str).str.strip() == "")
+                    cascade_mask = cascade_mask & ~na_mask
+                else:
+                    meth_cols    = [c for c in df_out.columns if c.endswith("_method")]
+                    mc           = meth_cols[0] if meth_cols else None
+                    warm_mask    = df_out[mc] == "WARM" if mc else pd.Series([False]*n)
+                    cascade_mask = ~warm_mask
 
+                n_warm_lig = int(warm_mask.sum())
+                n_warm_mod = int(df_out.loc[warm_mask, field_col].nunique())
+                n_new_lig  = int(cascade_mask.sum())
+                n_new_mod  = int(df_out.loc[cascade_mask, field_col].nunique())
+
+                print(f"  [{api_id}] Warm-start : {n_warm_mod} modalités uniques | {n_warm_lig:,} lignes")
+                if 0 < n_new_mod <= 5:
+                    new_vals = sorted(df_out.loc[cascade_mask, field_col].dropna().unique().tolist(),
+                                      key=lambda x: str(x))
+                    vals_str = " | ".join(str(v).strip() for v in new_vals)
+                    print(f"  [{api_id}] Nouvelles→cascade : {n_new_mod} modalités | {n_new_lig:,} lignes → {vals_str}")
+                elif n_new_mod > 5:
+                    print(f"  [{api_id}] Nouvelles→cascade : {n_new_mod} modalités uniques | {n_new_lig:,} lignes")
+                else:
+                    print(f"  [{api_id}] Nouvelles→cascade : 0 — toutes les modalités connues")
+            print(f"  [{api_id}] Résolues: {n_ok:,} | Outliers: {n_out:,} | Total: {n:,}")
             # 4. Outputs
             p_ext, p_map = self._save_outputs(df_out, cfg, historique)
 
@@ -121,7 +201,8 @@ class BasePipeline:
             traceback.print_exc()
             return {"api_id": api_id, "status": "ERROR", "error": str(exc)}
 
-    def run_all(self, config_dir: str | Path, max_workers: int = 4) -> list:
+    def run_all(self, config_dir: str | Path, max_workers: int = 4,
+                warm_start: bool = False) -> list:
         """Lance toutes les APIs du dossier config en parallèle."""
         paths = sorted(Path(config_dir).glob("*.yaml"))
         if not paths:
@@ -130,7 +211,7 @@ class BasePipeline:
         print(f"\nLancement {len(paths)} APIs — {max_workers} workers parallèles...")
         results = []
         with ProcessPoolExecutor(max_workers=max_workers) as ex:
-            futures = {ex.submit(self.run, str(p)): p.stem for p in paths}
+            futures = {ex.submit(self.run, str(p), None, warm_start): p.stem for p in paths}
             for f in as_completed(futures):
                 try:    results.append(f.result())
                 except Exception as e:
@@ -146,8 +227,11 @@ class BasePipeline:
         return results
 
     def _save_outputs(self, df: pd.DataFrame, cfg: dict, historique: bool):
-        api_id  = cfg["api_id"]
-        out_dir = Path(cfg["output"]["dir"])
+        import os
+        api_id   = cfg["api_id"]
+        base_dir = os.getenv("OUTPUT_BASE", "")
+        rel_dir  = cfg["output"]["dir"]
+        out_dir  = Path(base_dir) / rel_dir if base_dir else Path(rel_dir)
         ts      = datetime.now().strftime("%Y%m%d_%H%M%S")
         tag     = f"{api_id}-historique" if historique else api_id
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -157,10 +241,20 @@ class BasePipeline:
         export = [c for c in self.get_export_cols(df, cfg) if c in df.columns]
         p_ext  = write_csv(df[export], out_dir / f"{tag}_extraction_{ts}.csv")
         p_map  = out_dir / f"{tag}_mapping_outliers_{ts}.xlsx"
-        write_excel_sheets({"Mapping_Clean": df_clean, "Analyse_Outliers": df_analysis}, p_map)
+        write_excel_sheets(
+            {"Mapping_Clean": df_clean, "Analyse_Outliers": df_analysis},
+            p_map,
+            few_shot=getattr(self, "_few_shot", None),
+        )
 
         print(f"  [{api_id}] Extraction  → {p_ext.name}")
         print(f"  [{api_id}] Mapping     → {p_map.name}")
+
+        # Upload SharePoint (optionnel — activé si credentials définis dans .env)
+        from shared.sharepoint_uploader import upload_file
+        upload_file(p_ext, api_id=api_id)
+        upload_file(p_map, api_id=api_id)
+
         return p_ext, p_map
 
     @classmethod
@@ -176,58 +270,38 @@ class BasePipeline:
                             help="Fichier local CSV/Excel (écrase SQL Server)")
         parser.add_argument("--workers",    type=int, default=4,
                             help="Workers parallèles (défaut: 4)")
+        parser.add_argument("--schedule",   type=int, default=None,
+                            help="Lancer automatiquement toutes les N jours (ex: --schedule 30)")
+        parser.add_argument("--warm-start", action="store_true",
+                            help="Utilise le cache validé pour les modalités connues, cascade pour les nouvelles")
         args     = parser.parse_args()
         pipeline = cls()
 
-        if args.all:
-            pipeline.run_all(args.config_dir, max_workers=args.workers)
-        elif args.config:
-            pipeline.run(args.config, override_input=args.input)
+        # Injecter warm_start dans la config si demandé
+        if getattr(args, "warm_start", False):
+            from shared.base_pipeline import load_config as _orig
+            def _patched(path):
+                cfg = _orig(path)
+                cfg["warm_start"] = True
+                return cfg
+            import shared.base_pipeline as _bp
+            _bp.load_config = _patched
+
+        def _run_once():
+            if args.all:
+                pipeline.run_all(args.config_dir, max_workers=args.workers)
+            elif args.config:
+                pipeline.run(args.config, override_input=args.input)
+            else:
+                parser.print_help(); sys.exit(1)
+
+        if args.schedule:
+            import time
+            interval = args.schedule * 86400
+            print(f"Mode planifié : exécution toutes les {args.schedule} jour(s). Ctrl+C pour arrêter.")
+            while True:
+                _run_once()
+                print(f"  Prochaine exécution dans {args.schedule} jour(s).")
+                time.sleep(interval)
         else:
-            parser.print_help(); sys.exit(1)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# RÈGLE NA — commune à tous les champs
-# ══════════════════════════════════════════════════════════════════════════════
-
-def apply_na_rule(
-    row:       "pd.Series",
-    field_col: str,
-    ref_col:   str,
-    iso_col:   str,
-    mth_col:   str,
-) -> tuple:
-    """
-    Règle NA/OUTLIER identique pour tous les champs BCM.
-
-    Logique :
-      field == 'NA'  ET  ref == 'NA'   → ('NA', 'NA')
-      field == 'NA'  ET  ref != 'NA'   → ('OUTLIER', 'OUTLIER')
-      field vide / null / NaN          → ('OUTLIER', 'OUTLIER')
-      valeur non identifiée (OUTLIER)  → ('OUTLIER', 'OUTLIER')
-      sinon                            → (current_iso, current_mth) inchangé
-
-    Args:
-        row       : ligne du DataFrame (pd.Series)
-        field_col : nom de la colonne brute    (ex: "Devise", "ModeReglement")
-        ref_col   : nom de la colonne ref      (ex: "ReferenceTransaction")
-        iso_col   : nom de la colonne iso_out  (ex: "Devise_iso", "ModeReglement_iso")
-        mth_col   : nom de la colonne method   (ex: "Devise_method", "ModeReglement_method")
-    """
-    field_upper = str(row.get(field_col, "")).strip().upper()
-    ref_upper   = str(row.get(ref_col,   "")).strip().upper()
-    current_iso = row[iso_col]
-    current_mth = row[mth_col]
-
-    if field_upper == "NA":
-        return ("NA", "NA") if ref_upper == "NA" else ("OUTLIER", "OUTLIER")
-
-    if field_upper in ("", "NAN", "NONE", "NULL"):
-        return "OUTLIER", "OUTLIER"
-
-    if current_iso == "OUTLIER":
-        return "OUTLIER", "OUTLIER"
-
-    return current_iso, current_mth
-
+            _run_once()
