@@ -148,6 +148,27 @@ python pays/pipeline_pays.py           --all --config-dir pays/config/
 python typeswift/pipeline_typeswift.py --all --config-dir typeswift/config/
 ```
 
+
+
+### Warm-Start (traitement delta)
+ 
+Le flag `--warm-start` permet d'optimiser les exécutions suivant la première en réutilisant les classifications déjà validées. Au lieu de relancer la cascade complète (mapping → embedding → LLM), le pipeline résout directement chaque modalité connue depuis un cache JSON, et ne soumet à la cascade que les **nouvelles modalités**.
+ 
+
+#### Utilisation
+ 
+```bash
+# Un seul pipeline avec warm-start
+python pays/pipeline_pays.py --config pays/config/E07_FS.yaml --warm-start
+
+# Pour toutes les APIs d'un pipeline en parallèle
+python pays/pipeline_pays.py --all --config-dir pays/config/ --warm-start
+ 
+# Tous les pipelines (via le bat)
+run_pipeline.bat  # --warm-start est activé par défaut
+```
+
+
 ---
 
 ## Outputs
